@@ -1,615 +1,1263 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>ジャンル別IndexedDBページ</title>
-<style>
-/* ====== ベース ====== */
-body {
-  margin: 0;
-  font-family: "Segoe UI", Arial, sans-serif;
-  background: linear-gradient(135deg, #f9f9f9, #e3f2fd);
-  color: #333;
-}
-
-/* ====== ヘッダ/タブ ====== */
-.nav {
-  background: linear-gradient(90deg, #3f51b5, #2196f3);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-  position: relative;
-  padding: 10px 0;
-}
-#headder {
-  display: flex;
-  justify-content: center;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-#headder li {
-  margin: 0 10px;
-  padding: 15px 25px;
-  font-size: 18px;
-  color: white;
-  cursor: pointer;
-  transition: background 0.3s, transform 0.2s;
-  border-radius: 8px;
-}
-#headder li.active, #headder li:hover {
-  background: rgba(255,255,255,0.2);
-  transform: translateY(-2px);
-}
-
-/* ====== 検索UI（機能なし） ====== */
-#searchContainer {
-  position: absolute;
-  top: 10px;
-  right: 20px;
-  display: flex;
-  gap: 5px;
-}
-#searchContainer input {
-  padding: 8px 12px;
-  border-radius: 6px;
-  border: none;
-  outline: none;
-  font-size: 16px;
-}
-#searchContainer button {
-  padding: 8px 12px;
-  border-radius: 6px;
-  border: none;
-  background-color: #ff9800;
-  color: white;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background 0.3s;
-}
-#searchContainer button:hover {
-  background-color: #fb8c00;
-}
-
-/* ====== レイアウト ====== */
-.main {
-  display: flex;
-  min-height: calc(100vh - 60px);
-  padding: 20px;
-  gap: 20px;
-}
-.sidebar {
-  width: 20%;
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-  overflow: hidden; /* はみ出し防止 */
-}
-
-/* 左メニュー（フィルターUI） */
-.filter-title {
-  font-weight: bold;
-  color: #3f51b5;
-  margin: 0 0 12px 0;
-}
-.filter-group {
-  margin-bottom: 16px;
-}
-.filter-group label {
-  display: block;
-  font-size: 13px;
-  color: #555;
-  margin-bottom: 6px;
-}
-.filter-group select,
-.filter-group input[type="text"],
-.filter-group textarea {
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid #d6d9e0;
-  background: #f8faff;
-  font-size: 14px;
-  outline: none;
-  transition: box-shadow 0.2s, background 0.2s;
-  box-sizing: border-box; /* 追加 */
-  word-break: break-word; /* 追加 */
-  overflow-wrap: break-word; /* 追加 */
-}
-.filter-group select:focus,
-.filter-group input[type="text"]:focus,
-.filter-group textarea:focus {
-  background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(63,81,181,0.15);
-}
-
-/* 声優の入力補足 */
-.helper-text {
-  font-size: 12px;
-  color: #777;
-  margin-top: 6px;
-  word-break: break-word;
-  overflow-wrap: break-word;
-}
-
-/* 適用/リセット（見た目のみ） */
-.filter-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
-}
-.filter-actions button {
-  flex: 1;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 12px;
-  font-size: 14px;
-  cursor: pointer;
-  transition: transform 0.05s ease, box-shadow 0.2s ease, background 0.2s ease;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
-}
-#applyFilterBtn {
-  background: #3f51b5;
-  color: #fff;
-}
-#applyFilterBtn:hover { background: #5c6bc0; }
-#resetFilterBtn {
-  background: #e0e7ff;
-  color: #3f51b5;
-}
-#resetFilterBtn:hover { background: #c7d2fe; }
-
-/* 既存のサイドバーリンク（残す場合の見た目） */
-.sidebar a {
-  display: block;
-  padding: 12px 15px;
-  margin-top: 18px;
-  text-decoration: none;
-  color: #3f51b5;
-  background: #f0f4ff;
-  border-radius: 6px;
-  transition: all 0.3s;
-}
-.sidebar a:hover {
-  background: #3f51b5;
-  color: white;
-}
-
-/* ====== コンテンツ側 ====== */
-#content {
-  flex: 1;
-  background: white;
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-}
-
-/* ====== ボタン ====== */
-button#addRow {
-  background: #3f51b5;
-  color: white;
-  border: none;
-  padding: 10px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.3s;
-  margin-bottom: 15px;
-}
-button#addRow:hover {
-  background: #5c6bc0;
-}
-
-button {
-  cursor: pointer;
-  font-size: 12px;
-  padding: 6px 8px;
-  border-radius: 4px;
-  border: none;
-  margin: 0 2px;
-}
-
-/* アクションボタン */
-button.editBtn { background: #4caf50; color: #fff; }
-button.editBtn:hover { background: #388e3c; }
-
-button.deleteBtn { background: #e53935; color: #fff; }
-button.deleteBtn:hover { background: #c62828; }
-
-button.saveBtn { background: #2196f3; color: #fff; }
-button.saveBtn:hover { background: #1976d2; }
-
-button.cancelBtn { background: #9e9e9e; color: #fff; }
-button.cancelBtn:hover { background: #616161; }
-
-/* ====== テーブル ====== */
-table {
-  border-collapse: collapse;
-  width: 100%;
-  table-layout: fixed;
-  background: #fefefe;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-}
-table th {
-  background: #3f51b5;
-  color: #fff;
-  padding: 12px;
-  text-align: center;
-  cursor: pointer;
-  user-select: none;
-  position: relative;
-  word-wrap: break-word;
-}
-table th.sort-asc::after {
-  content: " ▲";
-  font-size: 12px;
-}
-table th.sort-desc::after {
-  content: " ▼";
-  font-size: 12px;
-}
-table td {
-  border: 1px solid #ddd;
-  padding: 10px;
-  text-align: center;
-  word-wrap: break-word;
-}
-table tr:nth-child(even) {
-  background: #f9f9f9;
-}
-
-/* 列幅指定 */
-th[data-col="name"], td.nameCell { width: 30%; }
-th[data-col="memo"], td.memoCell { width: 40%; }
-th[data-col="value"], td.valueCell { width: 20%; }
-th.operation, td.operation { width: 110px; }
-
-/* 編集用のインプット */
-td input[type="text"],
-td input[type="number"] {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 6px 8px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  font-size: 14px;
-}
-
-/* ====== フッター ====== */
-footer {
-  text-align: center;
-  padding: 15px;
-  background: #f0f0f0;
-  border-top: 1px solid #ddd;
-  margin-top: 20px;
-}
-</style>
+  <meta charset="UTF-8">
+  <title>ジャンル別IndexedDBページ</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: linear-gradient(135deg, #f9f9f9, #e3f2fd);
+      color: #333;
+    }
+    .nav {
+      background: linear-gradient(90deg, #3f51b5, #2196f3);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      position: relative;
+      padding: 10px 0;
+    }
+    #headder {
+      display: flex;
+      justify-content: center;
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    #headder li {
+      margin: 0 10px;
+      padding: 15px 25px;
+      font-size: 18px;
+      color: white;
+      cursor: pointer;
+      transition: background 0.3s, transform 0.2s;
+      border-radius: 8px;
+    }
+    #headder li.active,
+    #headder li:hover {
+      background: rgba(255,255,255,0.2);
+      transform: translateY(-2px);
+    }
+    .main {
+      display: flex;
+      min-height: calc(88vh);
+      padding: 20px;
+      gap: 20px;
+    }
+    .sidebar {
+      width: 22%;
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      overflow: hidden;
+      min-width: 210px;
+      position: relative;
+    }
+    .filter-title {
+      font-weight: bold;
+      color: #3f51b5;
+      margin: 0 0 12px 0;
+    }
+    .filter-group {
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    .filter-group label {
+      font-size: 13px;
+      color: #555;
+      margin-bottom: 6px;
+    }
+    #keywordInput {
+      width: 100%;
+      padding: 14px 12px;
+      border-radius: 8px;
+      border: 1px solid #d6d9e0;
+      background: #f8faff;
+      font-size: 14px;
+      outline: none;
+      transition: box-shadow 0.2s, background 0.2s;
+      box-sizing: border-box;
+      word-break: break-word;
+      overflow-wrap: break-word;
+      min-height: 44px;
+    }
+    #keywordInput:focus {
+      background: #ffffff;
+      box-shadow: 0 0 0 3px rgba(63,81,181,0.15);
+    }
+    .filter-label-btn {
+      display: block;
+      font-size: 13px;
+      color: #555;
+      margin-bottom: 6px;
+      background: #f8faff;
+      border: 1px solid #d6d9e0;
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.2s, box-shadow 0.2s;
+      outline: none;
+      width: 100%;
+    }
+    .filter-label-btn.active,
+    .filter-label-btn:focus {
+      background: #e3ebff;
+      box-shadow: 0 0 0 3px rgba(63,81,181,0.15);
+    }
+    .filter-menu {
+      display: none;
+      position: absolute;
+      left: 0;
+      top: 105%;
+      width: 100%;
+      background: #fff;
+      border: 1px solid #d6d9e0;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(33, 150, 243, 0.11);
+      z-index: 99;
+      max-height: 380px;
+      overflow: auto;
+      padding: 8px 0;
+      animation: fadeIn 0.15s;
+    }
+    .filter-menu.open {
+      display: block;
+    }
+    .filter-menu .menu-item {
+      padding: 8px 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 15px;
+      transition: background 0.2s;
+      user-select: none;
+    }
+    .filter-menu .menu-item:hover {
+      background: #e3f2fd;
+    }
+    .checkmark {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
+      border: 1px solid #3f51b5;
+      background: #fff;
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 8px;
+      position: relative;
+    }
+    .checkmark.checked {
+      background: #3f51b5;
+      border-color: #3f51b5;
+    }
+    .checkmark.checked::after {
+      content: "";
+      position: absolute;
+      left: 4px; top: 1px;
+      width: 6px; height: 11px;
+      border: solid #fff;
+      border-width: 0 3px 3px 0;
+      transform: rotate(45deg);
+    }
+    .helper-text {
+      font-size: 12px;
+      color: #777;
+      margin-top: 6px;
+      word-break: break-word;
+      overflow-wrap: break-word;
+    }
+    .filter-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .filter-actions button {
+      flex: 1;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: transform 0.05s ease, box-shadow 0.2s ease, background 0.2s ease;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+    #applyFilterBtn {
+      background: #3f51b5;
+      color: #fff;
+    }
+    #applyFilterBtn:hover { background: #5c6bc0; }
+    #resetFilterBtn {
+      background: #e0e7ff;
+      color: #3f51b5;
+    }
+    #resetFilterBtn:hover { background: #c7d2fe; }
+    .sidebar a {
+      display: block;
+      padding: 12px 15px;
+      margin-top: 18px;
+      text-decoration: none;
+      color: #3f51b5;
+      background: #f0f4ff;
+      border-radius: 6px;
+      transition: all 0.3s;
+    }
+    .sidebar a:hover {
+      background: #3f51b5;
+      color: white;
+    }
+    #content {
+      flex: 1;
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      min-width: 0;
+      position: relative;
+    }
+    button#addRow {
+      background: #3f51b5;
+      color: white;
+      border: none;
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.3s;
+      margin-bottom: 15px;
+    }
+    button#addRow:hover {
+      background: #5c6bc0;
+    }
+    button {
+      cursor: pointer;
+      font-size: 12px;
+      padding: 6px 8px;
+      border-radius: 4px;
+      border: none;
+      margin: 0 2px;
+    }
+    button.editBtn { background: #4caf50; color: #fff; }
+    button.editBtn:hover { background: #388e3c; }
+    button.deleteBtn { background: #e53935; color: #fff; }
+    button.deleteBtn:hover { background: #c62828; }
+    button.saveBtn { background: #2196f3; color: #fff; }
+    button.saveBtn:hover { background: #1976d2; }
+    button.cancelBtn { background: #9e9e9e; color: #fff; }
+    button.cancelBtn:hover { background: #616161; }
+    .detail-header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      gap: 12px;
+      width: 100%;
+    }
+    .backBtn {
+      background: #bbb;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 20px;
+      font-size: 17px;
+      cursor: pointer;
+      margin-top: 0;
+      margin-bottom: 0;
+    }
+    .backBtn:hover {
+      background: #999;
+    }
+    .editDetailBtn {
+      background: #4caf50;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 18px;
+      font-size: 17px;
+      cursor: pointer;
+      margin-left: 0;
+      margin-bottom: 0;
+      float: none;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .editDetailBtn:hover {
+      background: #388e3c;
+    }
+    .detail-header-title {
+      font-size: 32px;
+      color: #3f51b5;
+      margin: 18px 0 20px 0;
+      flex: 1 1 100%;
+      min-width: 120px;
+      text-align: left;
+    }
+    .detail-flex {
+      display: flex;
+      align-items: flex-start;
+      gap: 32px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .detail-image {
+      flex: 0 0 240px;
+      max-width: 240px;
+      min-width: 120px;
+      width: 200px;
+      margin-right: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .detail-summary-container {
+      flex: 1 1 0;
+      min-width: 180px;
+      background: #f8fafd;
+      padding: 18px 20px 16px 20px;
+      border-radius: 16px;
+      margin-bottom: 0;
+      box-shadow: 0 4px 24px 0 rgba(33, 150, 243, 0.11), 0 2px 8px 0 rgba(33, 80, 243, 0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-left: 0;
+      border: 2px solid #e3ebff;
+      position: relative;
+      z-index: 1;
+      animation: fadeIn 0.5s;
+      font-size: 1.13em;
+      color: #2b437a;
+    }
+    .detail-summary-label {
+      color: #1976d2;
+      font-weight: bold;
+      margin-bottom: 4px;
+      font-size: 1em;
+      text-align: left;
+      letter-spacing: 0.05em;
+    }
+    .detail-summary-value {
+      font-size: 1em;
+      color: #2b437a;
+      margin-bottom: 0;
+      text-align: left;
+      letter-spacing: 0.02em;
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+    .detail-summary-line {
+      margin-bottom: 4px;
+      word-break: break-all;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      table-layout: auto !important;
+      background: #fefefe;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    table th, table td {
+      text-align: center;
+      word-wrap: break-word;
+      padding: 10px;
+      border: 1px solid #b3c4e6;
+    }
+    table th {
+      background: #3f51b5;
+      color: #fff;
+      cursor: pointer;
+      user-select: none;
+      position: relative;
+    }
+    table th.sort-asc::after {
+      content: " ▲";
+      font-size: 12px;
+    }
+    table th.sort-desc::after {
+      content: " ▼";
+      font-size: 12px;
+    }
+    table tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+    th[data-col="name"], td.nameCell,
+    th[data-col="memo"], td.memoCell,
+    th[data-col="value"], td.valueCell,
+    th.operation, td.operation {
+      width: auto !important;
+      max-width: unset !important;
+    }
+    td input[type="text"],
+    td input[type="number"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    td select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px 8px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+      background: #fff;
+    }
+    #detailPanel {
+      margin: 0;
+      background: #f2f7ff;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(33, 150, 243, 0.08);
+      padding: 32px 32px 16px 32px;
+      display: none;
+      max-width: none;
+      width: 96%;
+      min-width: 0;
+      min-height: 300px;
+      position: absolute;
+      left: 0;
+      top: 0;
+      right: 0;
+      z-index: 20;
+    }
+    #detailPanel.active {
+      display: block;
+    }
+    #detailPanel h3 {
+      margin-top: 0;
+      color: #3f51b5;
+      font-size: 32px;
+      margin-bottom: 20px;
+      clear: both;
+    }
+    #detailPanel img {
+      max-width: 240px;
+      border-radius: 8px;
+      display: block;
+      margin-bottom: 0;
+      box-shadow: 0 2px 8px rgba(60,60,60,0.15);
+    }
+    #detailPanel .meta {
+      font-size: 18px;
+      margin-bottom: 16px;
+      color: #555;
+    }
+    #detailPanel .label {
+      font-weight: bold;
+      color: #1976d2;
+      margin-right: 4px;
+      font-size: 1em;
+    }
+    #detailPanel .edit-section {
+      margin: 28px 0 0 0;
+    }
+    #detailPanel textarea,
+    #detailPanel input[type="text"] {
+      width: 100%;
+      min-height: 60px;
+      border-radius: 6px;
+      border: 1px solid #b3c4e6;
+      padding: 8px;
+      font-size: 18px;
+      box-sizing: border-box;
+      margin-bottom: 10px;
+    }
+    #detailPanel input[type="text"] { min-height: unset; }
+    #detailPanel input[type="file"] {
+      display: block;
+      margin-bottom: 10px;
+    }
+    #detailPanel .saveDetailBtn {
+      background: #2196f3;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 18px;
+      font-size: 17px;
+      margin-right: 10px;
+    }
+    #detailPanel .cancelDetailBtn {
+      background: #aaa;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 18px;
+      font-size: 17px;
+    }
+    @keyframes fadeIn {
+      from { opacity:0; transform:translateY(20px);}
+      to   { opacity:1; transform:translateY(0);}
+    }
+    #content.hide-list #dataTable,
+    #content.hide-list #addRow,
+    #content.hide-list h2 {
+      display: none;
+    }
+    #content:not(.hide-list) #detailPanel {
+      display: none !important;
+    }
+    .cast-list-table {
+      border-collapse: collapse;
+      margin: 0 0 12px 0;
+      width: 100%;
+      background: #fff;
+      font-size: 1em;
+    }
+    .cast-list-table th, .cast-list-table td {
+      border: 1px solid #b3c4e6;
+      padding: 8px;
+      text-align: left;
+    }
+    .cast-list-table th {
+      background: #e3f2fd;
+      color: #1976d2;
+      width: 45%;
+    }
+    .cast-list-table thead {
+      font-size: 1.05em;
+    }
+    .cast-list-table tr:last-child td {
+      border-bottom: 1px solid #b3c4e6;
+    }
+    .cast-list-table input[type="text"] {
+      font-size: 16px;
+      min-width: 40px;
+      padding: 6px;
+      margin: 0;
+    }
+    .add-cast-btn, .remove-cast-btn {
+      background: #2196f3;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 15px;
+      margin-left: 6px;
+      vertical-align: middle;
+      cursor: pointer;
+    }
+    .remove-cast-btn {
+      background: #e53935;
+    }
+    .star {
+      cursor:pointer;
+      font-size:1.5em;
+      user-select: none;
+    }
+    .star.filled {
+      color: #ffc107;
+    }
+    footer {
+      text-align: center;
+      padding: 15px;
+      background: #f0f0f0;
+      border-top: 1px solid #ddd;
+      margin-top: 20px;
+    }
+    @media (max-width: 900px) {
+      #detailPanel {
+        padding: 12px 2vw 8px 2vw;
+      }
+      #detailPanel h3 {
+        font-size: 22px;
+      }
+      .detail-header-title {
+        font-size: 20px;
+      }
+      .detail-flex {
+        flex-direction: column;
+        gap: 12px;
+      }
+      .detail-summary-container {
+        padding: 10px 2vw 8px 2vw;
+        gap: 6px;
+      }
+    }
+    @media (max-width: 600px) {
+      .detail-flex {
+        flex-direction: column;
+        gap: 12px;
+      }
+      .detail-image {
+        width: 100%;
+        max-width: 100%;
+        align-items: flex-start;
+      }
+      .detail-summary-container {
+        margin-left: 0;
+      }
+      .detail-header-bar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+      }
+    }
+  </style>
 </head>
 <body>
-<nav class="nav">
-  <ul id="headder">
-    <li class="active" data-genre="映画">映画</li>
-    <li data-genre="アニメ">アニメ</li>
-    <li data-genre="ドラマ">ドラマ</li>
-    <li data-genre="ゲーム">ゲーム</li>
-  </ul>
-  <div id="searchContainer">
-    <input type="text" placeholder="検索...">
-    <button>検索</button>
+  <nav class="nav">
+    <ul id="headder">
+      <li class="active" data-genre="映画">映画</li>
+      <li data-genre="アニメ">アニメ</li>
+      <li data-genre="ドラマ">ドラマ</li>
+      <li data-genre="ゲーム">ゲーム</li>
+    </ul>
+  </nav>
+  <div class="main">
+    <aside class="sidebar">
+      <p class="filter-title">フィルター</p>
+      <div class="filter-group">
+        <label for="keywordInput">キーワード</label>
+        <input id="keywordInput" type="text" placeholder="作品名・キャラ名など">
+      </div>
+      <div class="filter-group" id="subGenreGroup">
+        <label for="subGenreBtn">ジャンル</label>
+        <button type="button" class="filter-label-btn" id="subGenreBtn">ジャンルを選択</button>
+        <div class="filter-menu" id="subGenreMenu"></div>
+      </div>
+      <div class="filter-group" id="yearGroup">
+        <label for="yearBtn">放送日</label>
+        <button type="button" class="filter-label-btn" id="yearBtn">放送日（年）を選択</button>
+        <div class="filter-menu" id="yearMenu"></div>
+      </div>
+      <div class="filter-group" id="voiceGroup">
+        <label for="voiceBtn">声優</label>
+        <button type="button" class="filter-label-btn" id="voiceBtn">声優を選択</button>
+        <div class="filter-menu" id="voiceMenu"></div>
+        <p class="helper-text">複数選択できます。</p>
+      </div>
+      <div class="filter-actions">
+        <button id="applyFilterBtn" type="button" title="見た目だけ（未実装）">適用</button>
+        <button id="resetFilterBtn" type="button" title="見た目だけ（未実装）">リセット</button>
+      </div>
+    </aside>
+    <div id="content">
+      <h2>データ一覧</h2>
+      <button id="addRow">追加</button>
+      <table id="dataTable">
+        <thead>
+          <tr>
+            <th data-col="name">名前</th>
+            <th data-col="memo">ジャンル</th>
+            <th data-col="value">点数</th>
+            <th class="operation">操作</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div id="detailPanel">
+        <div id="detailContent"></div>
+      </div>
+    </div>
   </div>
-</nav>
-
-<div class="main">
-  <aside class="sidebar">
-    <p class="filter-title">フィルター</p>
-
-    <div class="filter-group">
-      <label for="subGenreSelect">ジャンル</label>
-      <select id="subGenreSelect"></select>
-    </div>
-
-    <div class="filter-group">
-      <label for="yearSelect">放送日（年）</label>
-      <select id="yearSelect"></select>
-    </div>
-
-    <div class="filter-group">
-      <label for="voiceInput">声優</label>
-      <input id="voiceInput" type="text" placeholder="例）花澤香菜, 宮野真守, 梶裕貴">
-      <p class="helper-text">複数入力はカンマ区切り。入力例がサジェストされます。</p>
-      <datalist id="voiceList">
-        <option value="花澤香菜"></option>
-        <option value="宮野真守"></option>
-        <option value="水瀬いのり"></option>
-        <option value="梶裕貴"></option>
-        <option value="早見沙織"></option>
-        <option value="石田彰"></option>
-        <option value="釘宮理恵"></option>
-        <option value="悠木碧"></option>
-        <option value="神谷浩史"></option>
-        <option value="沢城みゆき"></option>
-      </datalist>
-    </div>
-
-    <div class="filter-actions">
-      <button id="applyFilterBtn" type="button" title="見た目だけ（未実装）">適用</button>
-      <button id="resetFilterBtn" type="button" title="見た目だけ（未実装）">リセット</button>
-    </div>
-
-    <a href="#">sample1</a>
-    <a href="#">sample2</a>
-    <a href="#">sample3</a>
-  </aside>
-
-  <div id="content">
-    <h2>データ一覧</h2>
-    <button id="addRow">追加</button>
-    <table id="dataTable">
-      <thead>
-        <tr>
-          <th data-col="name">名前</th>
-          <th data-col="memo">メモ</th>
-          <th data-col="value">数値</th>
-          <th class="operation">操作</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
-</div>
-
-<footer>
-  &copy; 2025 ジャンル別サンプル
-</footer>
-
-<script>
-/* ====== IndexedDBとテーブル機能 ====== */
-const genres = ["映画","アニメ","ドラマ","ゲーム"];
-let db;
-
-const request = indexedDB.open("GenreDatabase", 1);
-request.onupgradeneeded = function(e) {
-  db = e.target.result;
-  genres.forEach(genre => {
-    if (!db.objectStoreNames.contains(genre)) {
-      db.createObjectStore(genre, { keyPath: "id", autoIncrement: true });
+  <script>
+    function escapeHTML(str) {
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
     }
-  });
-};
-
-request.onsuccess = function(e) {
-  db = e.target.result;
-  addDefaultData();
-  loadData("映画");
-  initFilterUI("映画");
-};
-
-request.onerror = function(e){
-  console.error("IndexedDB open error:", e);
-};
-
-function addDefaultData() {
-  genres.forEach(genre => {
-    const tx = db.transaction(genre, "readonly");
-    const store = tx.objectStore(genre);
-    store.count().onsuccess = function(ev) {
-      if (ev.target.result === 0) {
-        const items = [];
-        if (genre === "映画") items.push(
-          {name:"test", memo:"test", value:100},
-          {name:"tttt", memo:"tttt", value:50},
-          {name:"ta", memo:"ta", value:20},
-          {name:"444", memo:"444", value:444}
-        );
-        if (genre === "アニメ") items.push(
-          {name:"a", memo:"a", value:1},
-          {name:"b", memo:"b", value:2}
-        );
-        if (genre === "ドラマ") items.push(
-          {name:"c", memo:"c", value:3},
-          {name:"d", memo:"d", value:4}
-        );
-        if (genre === "ゲーム") items.push(
-          {name:"e", memo:"e", value:5}
-        );
-        if (items.length > 0) {
-          const wtx = db.transaction(genre, "readwrite");
-          const wstore = wtx.objectStore(genre);
-          items.forEach(item => wstore.add(item));
-        }
-      }
+    const GENRE_OPTIONS = {
+      "映画": [
+        "アクション", "アドベンチャー", "SF（サイエンスフィクション）", "ファンタジー",
+        "ホラー", "サスペンス / ミステリー", "ドラマ（ヒューマンドラマ、社会派）",
+        "コメディ", "ロマンス / 恋愛", "ミュージカル", "戦争", "ヒストリー / 伝記",
+        "アニメ映画", "ドキュメンタリー"
+      ],
+      "アニメ": [
+        "バトル / アクション", "冒険 / ファンタジー", "ロボット / メカ", "SF / 近未来",
+        "日常 / コメディ", "恋愛 / 学園", "スポーツ", "ホラー / サスペンス", "歴史 / 戦記",
+        "ミュージカル / 音楽", "異世界", "短編 / オムニバス"
+      ],
+      "ドラマ": [
+        "国内ドラマ", "恋愛 / 青春", "医療 / 弁護士 / 刑事", "社会派 / ヒューマン",
+        "時代劇 / 歴史", "コメディ / ホームドラマ", "海外ドラマ", "サスペンス / クライム",
+        "SF / ファンタジー", "アクション", "コメディ / シットコム", "恋愛 / ヒューマン", "ドキュメンタリー系"
+      ],
+      "ゲーム": [
+        "RPG（ロールプレイング）", "アクション / アクションRPG", "アドベンチャー",
+        "シューティング（FPS / TPS）", "シミュレーション（経営・育成・歴史）", "スポーツ",
+        "レース", "パズル", "音楽 / リズム", "ホラー", "ファイティング（格闘）", "オンライン（MMORPG、バトロワ）", "カジュアル / パーティー"
+      ]
     };
-  });
-}
+    const VOICE_OPTIONS = [
+      "花澤香菜","宮野真守","水瀬いのり","梶裕貴","早見沙織",
+      "石田彰","釘宮理恵","悠木碧","神谷浩史","沢城みゆき"
+    ];
+    const genres = Object.keys(GENRE_OPTIONS);
+    let db;
+    let sortConfig = { col: null, order: "asc" };
 
-let sortConfig = { col: null, order: "asc" };
-function loadData(genre){
-  const tbody = document.querySelector("#dataTable tbody");
-  tbody.innerHTML = "";
-  const tx = db.transaction(genre, "readonly");
-  const store = tx.objectStore(genre);
-  const items = [];
-  store.openCursor().onsuccess = function(e){
-    const cursor = e.target.result;
-    if (cursor) {
-      items.push(cursor.value);
-      cursor.continue();
-    } else {
-      if (sortConfig.col) {
-        items.sort((a,b)=>{
-          if (a[sortConfig.col] < b[sortConfig.col]) return sortConfig.order==="asc"? -1:1;
-          if (a[sortConfig.col] > b[sortConfig.col]) return sortConfig.order==="asc"? 1:-1;
-          return 0;
-        });
+    // フィルター選択状態
+    let filterState = {
+      subGenre: [],
+      year: [],
+      voice: []
+    };
+
+    const request = indexedDB.open("GenreDatabase", 10);
+    request.onupgradeneeded = function (e) {
+      db = e.target.result;
+      genres.forEach(genre => {
+        if (!db.objectStoreNames.contains(genre)) {
+          db.createObjectStore(genre, { keyPath: "id", autoIncrement: true });
+        }
+      });
+    };
+    request.onsuccess = function (e) {
+      db = e.target.result;
+      loadData("映画");
+      initFilterUI("映画");
+    };
+    request.onerror = function (e) {
+      console.error("IndexedDB open error:", e);
+    };
+
+    function loadData(genre) {
+      const tbody = document.querySelector("#dataTable tbody");
+      tbody.innerHTML = "";
+      const tx = db.transaction(genre, "readonly");
+      const store = tx.objectStore(genre);
+      const items = [];
+      store.openCursor().onsuccess = function (e) {
+        const cursor = e.target.result;
+        if (cursor) {
+          items.push(cursor.value);
+          cursor.continue();
+        } else {
+          if (sortConfig.col) {
+            items.sort((a, b) => {
+              if (a[sortConfig.col] < b[sortConfig.col]) return sortConfig.order === "asc" ? -1 : 1;
+              if (a[sortConfig.col] > b[sortConfig.col]) return sortConfig.order === "asc" ? 1 : -1;
+              return 0;
+            });
+          }
+          // フィルタ適用（未実装：キーワード/ジャンル/年/声優）
+          // 今回は見た目のみ
+          items.forEach(({ id, name, memo, value }) => {
+            const tr = document.createElement("tr");
+            tr.dataset.id = id;
+            tr.tabIndex = 0;
+            tr.innerHTML = `
+              <td class="nameCell">${escapeHTML(name)}</td>
+              <td class="memoCell">${escapeHTML(memo || "")}</td>
+              <td class="valueCell">${escapeHTML(String(value))}</td>
+              <td class="operation">
+                <button class="editBtn" data-id="${id}" type="button">編集</button>
+                <button class="deleteBtn" data-id="${id}" type="button">削除</button>
+              </td>
+            `;
+            tr.classList.add("selectable-row");
+            tbody.appendChild(tr);
+          });
+          document.querySelectorAll("th[data-col]").forEach(th => {
+            th.classList.remove("sort-asc", "sort-desc");
+            if (th.dataset.col === sortConfig.col) {
+              th.classList.add(sortConfig.order === "asc" ? "sort-asc" : "sort-desc");
+            }
+          });
+          bindRowClick();
+        }
+      };
+    }
+
+    document.getElementById("addRow").addEventListener("click", () => {
+      const activeGenre = document.querySelector("#headder li.active").dataset.genre;
+      const tbody = document.querySelector("#dataTable tbody");
+      const tr = document.createElement("tr");
+      const options = GENRE_OPTIONS[activeGenre].map(opt => `<option value="${escapeHTML(opt)}">${escapeHTML(opt)}</option>`).join("");
+      tr.innerHTML = `
+        <td><input type="text" placeholder="名前"></td>
+        <td>
+          <select>
+            <option value="">選択してください</option>
+            ${options}
+          </select>
+        </td>
+        <td><input type="number" placeholder="点数" min="0" max="100"></td>
+        <td class="operation">
+          <button class="saveBtn" data-mode="create" type="button">保存</button>
+          <button class="cancelBtn" type="button">キャンセル</button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+      tr.querySelector("input,select").focus();
+      tr.querySelector(".saveBtn").onclick = tableSaveHandler;
+      tr.querySelector(".cancelBtn").onclick = () => loadData(activeGenre);
+    });
+
+    function tableSaveHandler(e) {
+      const tr = e.target.closest("tr");
+      const activeGenre = document.querySelector("#headder li.active").dataset.genre;
+      const inputs = tr.querySelectorAll("input,select");
+      const data = {
+        name: inputs[0].value.trim(),
+        memo: inputs[1].value,
+        value: Number(inputs[2].value)
+      };
+      const tx = db.transaction(activeGenre, "readwrite");
+      const store = tx.objectStore(activeGenre);
+      if (e.target.dataset.mode === "create") {
+        data.detail = {
+          review: "",
+          image: "",
+          summary: "",
+          genre: activeGenre,
+          casts: [],
+          rating: data.value,
+          subGenre: data.memo
+        };
+        data.genre = activeGenre;
+        store.add(data);
+      } else {
+        const id = Number(e.target.dataset.id);
+        data.id = id;
+        store.get(id).onsuccess = function (ev) {
+          let detailObj = (ev.target.result && ev.target.result.detail) ? ev.target.result.detail : {
+            review: "",
+            image: "",
+            summary: "",
+            genre: activeGenre,
+            casts: [],
+            rating: 0
+          };
+          detailObj.subGenre = data.memo;
+          detailObj.rating = data.value;
+          data.detail = detailObj;
+          data.genre = activeGenre;
+          store.put(data);
+        };
       }
-      items.forEach(({id,name,memo,value})=>{
-        const tr = document.createElement("tr");
-        tr.dataset.id = id;
+      tx.oncomplete = () => loadData(activeGenre);
+    }
+    document.querySelector("#dataTable tbody").addEventListener("click", function (e) {
+      const activeGenre = document.querySelector("#headder li.active").dataset.genre;
+      if (e.target.classList.contains("editBtn")) {
+        const tr = e.target.closest("tr");
+        const id = Number(e.target.dataset.id);
+        const name = tr.querySelector(".nameCell").textContent;
+        const memo = tr.querySelector(".memoCell").textContent;
+        const value = tr.querySelector(".valueCell").textContent;
+        const options = GENRE_OPTIONS[activeGenre].map(opt =>
+          `<option value="${escapeHTML(opt)}"${opt === memo ? ' selected' : ''}>${escapeHTML(opt)}</option>`
+        ).join("");
         tr.innerHTML = `
-          <td class="nameCell">${escapeHTML(name)}</td>
-          <td class="memoCell">${escapeHTML(memo)}</td>
-          <td class="valueCell">${escapeHTML(String(value))}</td>
+          <td><input type="text" value="${escapeHTML(name)}"></td>
+          <td>
+            <select>
+              <option value="">選択してください</option>
+              ${options}
+            </select>
+          </td>
+          <td><input type="number" value="${escapeHTML(value)}" min="0" max="100"></td>
           <td class="operation">
-            <button class="editBtn" data-id="${id}">編集</button>
-            <button class="deleteBtn" data-id="${id}">削除</button>
+            <button class="saveBtn" data-id="${id}" type="button">保存</button>
+            <button class="cancelBtn" type="button">キャンセル</button>
           </td>
         `;
-        tbody.appendChild(tr);
+        tr.classList.add("editing");
+        tr.querySelector("input,select").focus();
+        tr.querySelector(".saveBtn").onclick = tableSaveHandler;
+        tr.querySelector(".cancelBtn").onclick = () => loadData(activeGenre);
+      }
+      if (e.target.classList.contains("deleteBtn")) {
+        const id = Number(e.target.dataset.id);
+        const tx = db.transaction(activeGenre, "readwrite");
+        tx.objectStore(activeGenre).delete(id);
+        tx.oncomplete = () => loadData(activeGenre);
+      }
+    });
+    document.querySelector("#dataTable tbody").addEventListener("keydown", (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") {
+        if (e.key === "Enter") {
+          const tr = e.target.closest("tr");
+          const saveBtn = tr.querySelector(".saveBtn");
+          if (saveBtn) saveBtn.click();
+        } else if (e.key === "Escape") {
+          const tr = e.target.closest("tr");
+          const cancelBtn = tr.querySelector(".cancelBtn");
+          if (cancelBtn) cancelBtn.click();
+        }
+      }
+    });
+    document.querySelectorAll("#dataTable th[data-col]").forEach(th => {
+      th.addEventListener("click", () => {
+        if (sortConfig.col === th.dataset.col) {
+          sortConfig.order = sortConfig.order === "asc" ? "desc" : "asc";
+        } else {
+          sortConfig.col = th.dataset.col;
+          sortConfig.order = "asc";
+        }
+        const activeGenre = document.querySelector("#headder li.active").dataset.genre;
+        loadData(activeGenre);
       });
-      document.querySelectorAll("th[data-col]").forEach(th=>{
-        th.classList.remove("sort-asc","sort-desc");
-        if (th.dataset.col===sortConfig.col) {
-          th.classList.add(sortConfig.order==="asc"?"sort-asc":"sort-desc");
+    });
+    document.querySelectorAll("#headder li").forEach(li => {
+      li.addEventListener("click", () => {
+        document.querySelectorAll("#headder li").forEach(l => l.classList.remove("active"));
+        li.classList.add("active");
+        loadData(li.dataset.genre);
+        initFilterUI(li.dataset.genre);
+        hideDetailPanel();
+        showDataList();
+      });
+    });
+
+    // フィルターUI初期化
+    function initFilterUI(genre) {
+      // ジャンル
+      makeMenu("subGenreMenu", GENRE_OPTIONS[genre], filterState.subGenre, "ジャンル");
+      // 年
+      const years = [];
+      for (let y = 2025; y >= 2000; y--) years.push(String(y));
+      makeMenu("yearMenu", years, filterState.year, "放送日（年）");
+      // 声優
+      makeMenu("voiceMenu", VOICE_OPTIONS, filterState.voice, "声優");
+    }
+
+    // メニュー生成
+    function makeMenu(menuId, items, selectedArr, label) {
+      const menu = document.getElementById(menuId);
+      menu.innerHTML = "";
+      items.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "menu-item";
+        const checked = selectedArr.includes(item);
+        div.innerHTML = `<span class="checkmark${checked ? " checked" : ""}"></span>${escapeHTML(item)}`;
+        div.tabIndex = 0;
+        div.setAttribute("data-value", item);
+        div.onclick = function(e) {
+          if (checked) {
+            selectedArr.splice(selectedArr.indexOf(item), 1);
+          } else {
+            selectedArr.push(item);
+          }
+          makeMenu(menuId, items, selectedArr, label);
+          updateLabelBtn(menuId, selectedArr, label);
+        };
+        div.onkeydown = function(e) {
+          if (e.key === " " || e.key === "Enter") {
+            div.onclick();
+          }
+        };
+        menu.appendChild(div);
+      });
+      updateLabelBtn(menuId, selectedArr, label);
+    }
+
+    // メニューボタンのラベル更新
+    function updateLabelBtn(menuId, selectedArr, label) {
+      let btnId = "";
+      if (menuId === "subGenreMenu") btnId = "subGenreBtn";
+      else if (menuId === "yearMenu") btnId = "yearBtn";
+      else if (menuId === "voiceMenu") btnId = "voiceBtn";
+      const btn = document.getElementById(btnId);
+      if (selectedArr.length === 0) {
+        btn.textContent = label + "を選択";
+      } else {
+        btn.textContent = selectedArr.join(", ");
+      }
+    }
+
+    // メニュー表示・非表示管理
+    function setupMenuBtn(btnId, menuId) {
+      const btn = document.getElementById(btnId);
+      const menu = document.getElementById(menuId);
+      btn.addEventListener("click", function(e) {
+        closeAllMenus();
+        menu.classList.toggle("open");
+        btn.classList.toggle("active", menu.classList.contains("open"));
+      });
+      // フォーカス外れたら閉じる
+      document.addEventListener("mousedown", function(e) {
+        if (!btn.contains(e.target) && !menu.contains(e.target)) {
+          menu.classList.remove("open");
+          btn.classList.remove("active");
         }
       });
     }
-  };
-}
+    setupMenuBtn("subGenreBtn", "subGenreMenu");
+    setupMenuBtn("yearBtn", "yearMenu");
+    setupMenuBtn("voiceBtn", "voiceMenu");
 
-function escapeHTML(str){
-  return String(str)
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#39;");
-}
-
-/* ====== テーブル操作 ====== */
-document.getElementById("addRow").addEventListener("click", ()=>{
-  const tbody = document.querySelector("#dataTable tbody");
-  const tr = document.createElement("tr");
-  tr.innerHTML = `
-    <td><input type="text" placeholder="名前"></td>
-    <td><input type="text" placeholder="メモ"></td>
-    <td><input type="number" placeholder="数値"></td>
-    <td class="operation">
-      <button class="saveBtn" data-mode="create">保存</button>
-      <button class="cancelBtn">キャンセル</button>
-    </td>
-  `;
-  tbody.appendChild(tr);
-  tr.querySelector("input").focus();
-});
-
-const table = document.querySelector("#dataTable");
-
-document.querySelector("#dataTable tbody").addEventListener("keydown",(e)=>{
-  if (e.target.tagName === "INPUT") {
-    if (e.key === "Enter") {
-      const tr = e.target.closest("tr");
-      const saveBtn = tr.querySelector(".saveBtn");
-      if (saveBtn) saveBtn.click();
-    } else if (e.key === "Escape") {
-      const tr = e.target.closest("tr");
-      const cancelBtn = tr.querySelector(".cancelBtn");
-      if (cancelBtn) cancelBtn.click();
+    function closeAllMenus() {
+      document.querySelectorAll('.filter-menu').forEach(menu => menu.classList.remove("open"));
+      document.querySelectorAll('.filter-label-btn').forEach(btn => btn.classList.remove("active"));
     }
-  }
-});
 
-table.addEventListener("click", (e)=>{
-  const activeGenre = document.querySelector("#headder li.active").dataset.genre;
-  if (e.target.classList.contains("deleteBtn")) {
-    const id = Number(e.target.dataset.id);
-    const tx = db.transaction(activeGenre, "readwrite");
-    tx.objectStore(activeGenre).delete(id);
-    tx.oncomplete = ()=> loadData(activeGenre);
-    return;
-  }
+    document.getElementById("applyFilterBtn").addEventListener("click", () => alert("見た目のみの操作です"));
+    document.getElementById("resetFilterBtn").addEventListener("click", () => {
+      filterState = {
+        subGenre: [],
+        year: [],
+        voice: []
+      };
+      initFilterUI(document.querySelector("#headder li.active").dataset.genre);
+      alert("見た目のみの操作です");
+    });
 
-  if (e.target.classList.contains("editBtn")) {
-    const tr = e.target.closest("tr");
-    const id = Number(e.target.dataset.id);
-    const name = tr.querySelector(".nameCell").textContent;
-    const memo = tr.querySelector(".memoCell").textContent;
-    const value = tr.querySelector(".valueCell").textContent;
-    tr.innerHTML = `
-      <td><input type="text" value="${name}"></td>
-      <td><input type="text" value="${memo}"></td>
-      <td><input type="number" value="${value}"></td>
-      <td class="operation">
-        <button class="saveBtn" data-id="${id}">保存</button>
-        <button class="cancelBtn">キャンセル</button>
-      </td>
-    `;
-    tr.querySelector("input").focus();
-    return;
-  }
-
-  if (e.target.classList.contains("saveBtn")) {
-    const tr = e.target.closest("tr");
-    const inputs = tr.querySelectorAll("input");
-    const data = {
-      name: inputs[0].value.trim(),
-      memo: inputs[1].value.trim(),
-      value: Number(inputs[2].value)
-    };
-    const tx = db.transaction(activeGenre,"readwrite");
-    const store = tx.objectStore(activeGenre);
-
-    if (e.target.dataset.mode==="create") {
-      store.add(data);
-    } else {
-      const id = Number(e.target.dataset.id);
-      data.id = id;
-      store.put(data);
+    function bindRowClick() {
+      document.querySelectorAll("#dataTable tbody tr.selectable-row").forEach(tr => {
+        tr.addEventListener("click", function (e) {
+          if (tr.classList.contains("editing")) return;
+          if (e.target.closest('.operation')) return;
+          if (!e.target.classList.contains('nameCell')) return;
+          const activeGenre = document.querySelector("#headder li.active").dataset.genre;
+          const id = Number(tr.dataset.id);
+          const tx = db.transaction(activeGenre, "readonly");
+          tx.objectStore(activeGenre).get(id).onsuccess = function (ev) {
+            const data = ev.target.result;
+            showDetailPanel(data, activeGenre, false);
+          };
+        });
+        tr.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") {
+            if (tr.classList.contains("editing")) return;
+            if (document.activeElement === tr.querySelector('.nameCell')) {
+              const activeGenre = document.querySelector("#headder li.active").dataset.genre;
+              const id = Number(tr.dataset.id);
+              const tx = db.transaction(activeGenre, "readonly");
+              tx.objectStore(activeGenre).get(id).onsuccess = function (ev) {
+                const data = ev.target.result;
+                showDetailPanel(data, activeGenre, false);
+              };
+            }
+          }
+        });
+      });
     }
-    tx.oncomplete = ()=> loadData(activeGenre);
-    return;
-  }
-
-  if (e.target.classList.contains("cancelBtn")) {
-    loadData(activeGenre);
-  }
-});
-
-/* ====== ソート ====== */
-document.querySelectorAll("#dataTable th[data-col]").forEach(th=>{
-  th.addEventListener("click",()=>{
-    if (sortConfig.col === th.dataset.col) {
-      sortConfig.order = sortConfig.order==="asc"?"desc":"asc";
-    } else {
-      sortConfig.col = th.dataset.col;
-      sortConfig.order = "asc";
+    function showDataList() {
+      document.getElementById("content").classList.remove("hide-list");
     }
-    const activeGenre = document.querySelector("#headder li.active").dataset.genre;
-    loadData(activeGenre);
-  });
-});
-
-/* ====== タブ切替 ====== */
-document.querySelectorAll("#headder li").forEach(li=>{
-  li.addEventListener("click",()=>{
-    document.querySelectorAll("#headder li").forEach(l=>l.classList.remove("active"));
-    li.classList.add("active");
-    loadData(li.dataset.genre);
-    initFilterUI(li.dataset.genre);
-  });
-});
-
-/* ====== フィルターUI初期化 ====== */
-function initFilterUI(genre){
-  const subGenreSelect = document.getElementById("subGenreSelect");
-  subGenreSelect.innerHTML = "";
-  ["A","B","C"].forEach(sg=>{
-    const opt = document.createElement("option");
-    opt.value = sg; opt.textContent = sg;
-    subGenreSelect.appendChild(opt);
-  });
-
-  const yearSelect = document.getElementById("yearSelect");
-  yearSelect.innerHTML = "";
-  for(let y=2025;y>=2000;y--){
-    const opt = document.createElement("option");
-    opt.value = y; opt.textContent = y;
-    yearSelect.appendChild(opt);
-  }
-}
-
-/* ====== フィルター適用/リセット（未実装） ====== */
-document.getElementById("applyFilterBtn").addEventListener("click", ()=>alert("見た目のみの操作です"));
-document.getElementById("resetFilterBtn").addEventListener("click", ()=>alert("見た目のみの操作です"));
-</script>
+    function hideDataList() {
+      document.getElementById("content").classList.add("hide-list");
+    }
+    function hideDetailPanel() {
+      document.getElementById("detailPanel").classList.remove("active");
+      showDataList();
+      document.getElementById("detailContent").innerHTML = "";
+    }
+    function showDetailPanel(data, genre, editMode) {
+      const detailPanel = document.getElementById("detailPanel");
+      const detailContent = document.getElementById("detailContent");
+      detailPanel.classList.add("active");
+      hideDataList();
+      const detail = data.detail || {
+        review: "",
+        image: "",
+        summary: "",
+        genre: genre,
+        casts: [],
+        rating: data.value || 0,
+        subGenre: data.memo || ""
+      };
+      let imgHtml = "";
+      if (detail.image) {
+        imgHtml = `<img src="${detail.image}" alt="作品画像">`;
+      }
+      let castLabel = (["映画", "ドラマ"].includes(detail.genre || genre)) ? "俳優・女優一覧" : "声優一覧";
+      if (!editMode) {
+        let castHtml = `<table class="cast-list-table"><thead><tr><th>名前</th><th>キャラクター名</th></tr></thead><tbody>`;
+        (detail.casts && Array.isArray(detail.casts) ? detail.casts : []).forEach(cast => {
+          castHtml += `<tr><td>${escapeHTML(cast.actor || "")}</td><td>${escapeHTML(cast.character || "")}</td></tr>`;
+        });
+        castHtml += `</tbody></table>`;
+        detailContent.innerHTML = `
+          <div class="detail-header-bar">
+            <button class="backBtn" id="backBtn" type="button">← 戻る</button>
+            <button class="editDetailBtn" id="editDetailBtn" type="button">編集</button>
+          </div>
+          <h3 class="detail-header-title">${escapeHTML(data.name)}</h3>
+          <div class="detail-flex">
+            <div class="detail-image">
+              ${imgHtml}
+            </div>
+            <div class="detail-summary-container">
+              <div class="detail-summary-label">ジャンル</div>
+              <div class="detail-summary-value">${escapeHTML(detail.subGenre || data.memo || "")}</div>
+              <div class="detail-summary-label">評価</div>
+              <div class="detail-summary-value">${typeof detail.rating === "number" ? detail.rating : ""}</div>
+              <div class="detail-summary-label">あらすじ</div>
+              <div class="detail-summary-value">${escapeHTML(detail.summary || "")}</div>
+            </div>
+          </div>
+          <div class="meta"><span class="detail-summary-label">${castLabel}</span></div>
+          ${castHtml}
+          <div class="meta"><span class="detail-summary-label">感想</span></div>
+          <div style="font-size:1.08em; margin-bottom: 20px;">${escapeHTML(detail.review || "（未記入）")}</div>
+        `;
+        document.getElementById("editDetailBtn").onclick = function () {
+          showDetailPanel(data, genre, true);
+        };
+        document.getElementById("backBtn").onclick = hideDetailPanel;
+        return;
+      }
+      let castRows = "";
+      (detail.casts && Array.isArray(detail.casts) ? detail.casts : []).forEach((cast, idx) => {
+        castRows += `
+          <tr>
+            <td><input type="text" class="actorInput" value="${escapeHTML(cast.actor || "")}" placeholder="俳優/声優名"></td>
+            <td><input type="text" class="characterInput" value="${escapeHTML(cast.character || "")}" placeholder="キャラクター名"></td>
+            <td><button type="button" class="remove-cast-btn" data-idx="${idx}">削除</button></td>
+          </tr>
+        `;
+      });
+      const genreOptions = GENRE_OPTIONS[genre].map(opt =>
+        `<option value="${escapeHTML(opt)}"${opt === detail.subGenre ? ' selected' : ''}>${escapeHTML(opt)}</option>`
+      ).join("");
+      detailContent.innerHTML = `
+        <div class="detail-header-bar">
+          <button class="backBtn" id="backBtn" type="button">← 戻る</button>
+          <button class="editDetailBtn" id="editDetailBtn" type="button" style="visibility:hidden;">編集</button>
+        </div>
+        <h3 class="detail-header-title">${escapeHTML(data.name)}</h3>
+        <form id="detailEditForm" autocomplete="off">
+          <div class="filter-group" style="max-width:300px;margin-bottom:14px;">
+            <label class="detail-summary-label">ジャンル</label>
+            <select id="subGenreEditSelect">
+              <option value="">選択してください</option>
+              ${genreOptions}
+            </select>
+          </div>
+          <div class="detail-flex">
+            <div class="detail-image">
+              <label>画像アップロード（jpg/png）</label>
+              <input type="file" accept="image/*" id="detailImgInput"><br>
+              ${imgHtml}
+            </div>
+            <div class="detail-summary-container">
+              <div class="detail-summary-label">評価</div>
+              <input id="detailRating" type="number" min="0" max="100" value="${typeof detail.rating === "number" ? detail.rating : ""}" style="width:60px; font-size:1em; padding: 2px 6px; border-radius:5px; border:1px solid #b3c4e6; margin-bottom: 10px;">
+              <div class="detail-summary-label">あらすじ</div>
+              <textarea id="detailSummary" maxlength="200" style="width:100%;min-height:60px;">${detail.summary||""}</textarea>
+            </div>
+          </div>
+          <label class="detail-summary-label" style="margin-top:10px;">${castLabel}</label>
+          <table class="cast-list-table" id="editCastTable">
+            <thead>
+              <tr>
+                <th>名前</th><th>キャラクター名</th><th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${castRows}
+            </tbody>
+          </table>
+          <button type="button" class="add-cast-btn" id="addCastBtn">+追加</button>
+          <label class="detail-summary-label" style="margin-top:10px;">感想</label>
+          <textarea id="detailReview" maxlength="300">${detail.review || ""}</textarea>
+          <div style="margin-top:18px;">
+            <button type="submit" class="saveDetailBtn">保存</button>
+            <button type="button" class="cancelDetailBtn">キャンセル</button>
+          </div>
+        </form>
+      `;
+      document.getElementById("backBtn").onclick = function () {
+        showDetailPanel(data, genre, false);
+      };
+      const form = document.getElementById("detailEditForm");
+      const imgInput = document.getElementById("detailImgInput");
+      let imageData = detail.image || "";
+      let rating = typeof detail.rating === "number" ? detail.rating : 0;
+      let casts = (detail.casts && Array.isArray(detail.casts)) ? detail.casts.map(c => ({ ...c })) : [];
+      imgInput.addEventListener("change", function () {
+        const file = imgInput.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function (ev) {
+          imageData = ev.target.result;
+          form.querySelector(".detail-image img")?.remove();
+          const img = document.createElement("img");
+          img.src = imageData;
+          img.alt = "作品画像";
+          img.style.marginBottom = "10px";
+          img.style.maxWidth = "240px";
+          img.style.display = "block";
+          img.style.borderRadius = "8px";
+          img.style.boxShadow = "0 2px 8px rgba(60,60,60,0.15)";
+          imgInput.insertAdjacentElement("afterend", img);
+        };
+        reader.readAsDataURL(file);
+      });
+      form.querySelector("#addCastBtn").addEventListener("click", function () {
+        casts.push({ actor: "", character: "" });
+        renderCastRows();
+      });
+      function renderCastRows() {
+        const tbody = document.querySelector("#editCastTable tbody");
+        tbody.innerHTML = "";
+        casts.forEach((cast, idx) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td><input type="text" class="actorInput" value="${escapeHTML(cast.actor || "")}" placeholder="俳優/声優名"></td>
+            <td><input type="text" class="characterInput" value="${escapeHTML(cast.character || "")}" placeholder="キャラクター名"></td>
+            <td><button type="button" class="remove-cast-btn" data-idx="${idx}">削除</button></td>
+          `;
+          tbody.appendChild(tr);
+          tr.querySelector(".remove-cast-btn").addEventListener("click", function () {
+            casts.splice(idx, 1);
+            renderCastRows();
+          });
+          tr.querySelector(".actorInput").addEventListener("input", function () {
+            casts[idx].actor = this.value;
+          });
+          tr.querySelector(".characterInput").addEventListener("input", function () {
+            casts[idx].character = this.value;
+          });
+        });
+      }
+      renderCastRows();
+      form.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        const summary = document.getElementById("detailSummary").value.trim();
+        const review = document.getElementById("detailReview").value.trim();
+        const subGenre = document.getElementById("subGenreEditSelect").value;
+        const ratingInput = document.getElementById("detailRating");
+        const ratingVal = ratingInput ? Number(ratingInput.value) : 0;
+        const inputs = document.querySelectorAll("#editCastTable tbody tr");
+        casts = [];
+        inputs.forEach(tr => {
+          const actor = tr.querySelector(".actorInput").value.trim();
+          const character = tr.querySelector(".characterInput").value.trim();
+          if (actor || character) casts.push({ actor, character });
+        });
+        const tx = db.transaction(genre, "readwrite");
+        const store = tx.objectStore(genre);
+        store.get(data.id).onsuccess = function (ev2) {
+          const origin = ev2.target.result;
+          origin.detail = {
+            summary,
+            review,
+            image: imageData,
+            genre,
+            casts,
+            rating: ratingVal,
+            subGenre
+          };
+          origin.value = ratingVal;
+          origin.memo = subGenre;
+          store.put(origin);
+          tx.oncomplete = () => {
+            const tx2 = db.transaction(genre, "readonly");
+            tx2.objectStore(genre).get(data.id).onsuccess = function (ev3) {
+              showDetailPanel(ev3.target.result, genre, false);
+              loadData(genre);
+            };
+          };
+        };
+      });
+      form.querySelector(".cancelDetailBtn").addEventListener("click", () => {
+        showDetailPanel(data, genre, false);
+      });
+    }
+    hideDetailPanel();
+  </script>
 </body>
 </html>
