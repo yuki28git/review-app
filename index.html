@@ -54,6 +54,10 @@
       min-width: 210px;
       position: relative;
     }
+    .sidebar .filter-group label {
+      font-weight: bold;
+      font-size: 14px; /* お好みで */
+    }
     .filter-title {
       font-weight: bold;
       color: #3f51b5;
@@ -211,6 +215,7 @@
       color: white;
     }
     #content {
+      position: relative; /* 追加・必須 */
       flex: 1;
       background: white;
       border-radius: 12px;
@@ -411,21 +416,22 @@
       background: #fff;
     }
     #detailPanel {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      z-index: 20;
+      width: 100%;
+      height: 100%;
       margin: 0;
       background: #f2f7ff;
-      border-radius: 10px;
+      border-radius: 12px;
       box-shadow: 0 2px 8px rgba(33, 150, 243, 0.08);
       padding: 32px 32px 16px 32px;
       display: none;
-      max-width: none;
-      width: 96%;
       min-width: 0;
       min-height: 300px;
-      position: absolute;
-      left: 0;
-      top: 0;
-      right: 0;
-      z-index: 20;
+      box-sizing: border-box; /* 追加・必須 */
     }
     #detailPanel.active {
       display: block;
@@ -631,15 +637,14 @@
         <label for="voiceBtn" id="voiceLabel">声優</label>
         <button type="button" class="filter-label-btn" id="voiceBtn">声優を選択</button>
         <div class="filter-menu" id="voiceMenu"></div>
-        <p class="helper-text" id="voiceHelper">複数選択できます。</p>
       </div>
       <!-- 点数フィルターの追加 -->
       <div class="filter-group" id="scoreGroup">
         <label for="scoreMinInput">点数（範囲指定）</label>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input id="scoreMinInput" type="number" min="0" max="100" value="0" style="width:60px;" placeholder="最小値">
-          <span>～</span>
-          <input id="scoreMaxInput" type="number" min="0" max="100" value="100" style="width:60px;" placeholder="最大値">
+        <div style="display:flex;gap:12px;align-items:center; margin-top:4px;">
+          <input id="scoreMinInput" type="number" min="0" max="100" value="0" style="width:60px; height: 8px; font-size: 1.18em; padding: 12px 10px; border-radius: 10px;" placeholder="最小値">
+          <span style="font-size: 1.2em;">～</span>
+          <input id="scoreMaxInput" type="number" min="0" max="100" value="100" style="width:60px; height: 8px; font-size: 1.18em; padding: 12px 10px; border-radius: 10px;" placeholder="最大値">
         </div>
         <p class="helper-text">0～100の範囲で指定できます。</p>
       </div>
@@ -778,7 +783,6 @@
       const label = VOICE_LABELS[genre];
       document.getElementById("voiceLabel").textContent = label;
       document.getElementById("voiceBtn").textContent = label + "を選択";
-      document.getElementById("voiceHelper").textContent = "複数選択できます。";
     }
     function updateDynamicSubGenres(genre) {
       dynamicSubGenres = [];
