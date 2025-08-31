@@ -2,9 +2,9 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>ジャンル別IndexedDBページ</title>
+  <title>ジャンル別IndexedDBページ（バックアップ機能付き）</title>
   <style>
-    /* ...（省略なし：元のCSSそのままです）... */
+    /* ここは省略なし：元のCSSそのままです */
     body {
       margin: 0;
       font-family: "Segoe UI", Arial, sans-serif;
@@ -56,7 +56,7 @@
     }
     .sidebar .filter-group label {
       font-weight: bold;
-      font-size: 14px; /* お好みで */
+      font-size: 14px;
     }
     .filter-title {
       font-weight: bold;
@@ -431,7 +431,7 @@
       display: none;
       min-width: 0;
       min-height: 300px;
-      box-sizing: border-box; /* 追加・必須 */
+      box-sizing: border-box;
     }
     #detailPanel.active {
       display: block;
@@ -638,7 +638,6 @@
         <button type="button" class="filter-label-btn" id="voiceBtn">声優を選択</button>
         <div class="filter-menu" id="voiceMenu"></div>
       </div>
-      <!-- 点数フィルターの追加 -->
       <div class="filter-group" id="scoreGroup">
         <label for="scoreMinInput">点数（範囲指定）</label>
         <div style="display:flex;gap:12px;align-items:center; margin-top:4px;">
@@ -651,6 +650,13 @@
       <div class="filter-actions">
         <button id="applyFilterBtn" type="button">適用</button>
         <button id="resetFilterBtn" type="button">リセット</button>
+      </div>
+      <hr style="margin:18px 0;">
+      <div style="margin-top:20px;">
+        <button id="backupBtn" type="button" style="width:100%;background:#1976d2;color:#fff;padding:12px 0;font-size:1.1em;border-radius:8px;">データバックアップ</button>
+        <input type="file" id="restoreFile" accept=".json" style="display:none;">
+        <button id="restoreBtn" type="button" style="width:100%;margin-top:9px;background:#43a047;color:#fff;padding:12px 0;font-size:1.1em;border-radius:8px;">バックアップから復元</button>
+        <div id="backupMessage" style="font-size:13px;color:#1976d2;margin-top:8px;"></div>
       </div>
     </aside>
     <div id="content">
@@ -674,7 +680,113 @@
     </div>
   </div>
   <script>
-    // --- 定数 ---
+    // --- ここから下はご提示の現状JavaScriptコードを全て省略せずコピペしてください ---
+    // --- バックアップ・リストア実装 ---
+    const BACKUP_VERSION = 1;
+    document.getElementById("backupBtn").addEventListener("click", async function() {
+      if (!db) return;
+      const genres = Object.keys(GENRE_OPTIONS);
+      const backup = { version: BACKUP_VERSION, datetime: new Date().toISOString(), data: {} };
+      let pending = genres.length;
+      for (const genre of genres) {
+        const tx = db.transaction(genre, "readonly");
+        const store = tx.objectStore(genre);
+        const req = store.getAll();
+        req.onsuccess = function(e) {
+          backup.data[genre] = e.target.result;
+          pending--;
+          if (pending === 0) {
+            // すべて完了
+            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `db_backup_${new Date().toISOString().replace(/[:.]/g,"-")}.json`;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 1000);
+            showBackupMessage("バックアップファイルをダウンロードしました");
+          }
+        };
+        req.onerror = function() {
+          showBackupMessage("バックアップ失敗: " + genre + "の取得エラー");
+        };
+      }
+    });
+
+    document.getElementById("restoreBtn").addEventListener("click", function() {
+      document.getElementById("restoreFile").click();
+    });
+    document.getElementById("restoreFile").addEventListener("change", function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        try {
+          const backup = JSON.parse(ev.target.result);
+          if (!backup || !backup.data || typeof backup.data !== "object") {
+            showBackupMessage("無効なバックアップファイルです");
+            return;
+          }
+          restoreDatabase(backup.data);
+        } catch (ex) {
+          showBackupMessage("バックアップファイルの解析に失敗しました");
+        }
+      };
+      reader.readAsText(file);
+    });
+    function restoreDatabase(dataObj) {
+      if (!db) {
+        showBackupMessage("DBがまだ初期化されていません。ページを再読み込みしてください。");
+        return;
+      }
+      const genres = Object.keys(GENRE_OPTIONS);
+      let total = genres.length, finished = 0, error = false;
+      for (const genre of genres) {
+        const tx = db.transaction(genre, "readwrite");
+        const store = tx.objectStore(genre);
+        // 一旦全削除
+        const clearReq = store.clear();
+        clearReq.onsuccess = function() {
+          // データ再挿入
+          const arr = Array.isArray(dataObj[genre]) ? dataObj[genre] : [];
+          let pending = arr.length;
+          if(pending === 0) checkDone();
+          arr.forEach(item => {
+            if ("id" in item) delete item.id;
+            store.add(item).onsuccess = function() {
+              pending--;
+              if(pending === 0) checkDone();
+            };
+          });
+        };
+        clearReq.onerror = function() {
+          if (!error) {
+            error = true;
+            showBackupMessage("復元中にエラーが発生しました: " + genre);
+          }
+        };
+      }
+      function checkDone() {
+        finished++;
+        if (finished === total && !error) {
+          showBackupMessage("復元が完了しました。リストを再表示します。");
+          loadData(currentGenre);
+          updateDynamicSubGenres(currentGenre);
+          updateDynamicCastNames(currentGenre);
+          updateDynamicYears(currentGenre);
+          updateDateLabel(currentGenre);
+          updateCastLabel(currentGenre);
+          updateDateColumnHeader(currentGenre);
+        }
+      }
+    }
+    function showBackupMessage(msg) {
+      const el = document.getElementById("backupMessage");
+      el.textContent = msg;
+      el.style.opacity = 1;
+      setTimeout(()=>{ el.style.opacity = 0; }, 4000);
+    }
     function escapeHTML(str) {
       return String(str)
         .replaceAll("&", "&amp;")
