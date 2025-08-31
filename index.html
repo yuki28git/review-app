@@ -1131,8 +1131,9 @@
     document.getElementById("addRow").addEventListener("click", () => {
       const activeGenre = document.querySelector("#headder li.active").dataset.genre;
       const tbody = document.querySelector("#dataTable tbody");
-      const options = dynamicSubGenres.map(opt => `<option value="${escapeHTML(opt)}">${escapeHTML(opt)}</option>`).join("");
-      tr = document.createElement("tr");
+      // ここをGENRE_OPTIONSから取る！
+      const options = GENRE_OPTIONS[activeGenre].map(opt => `<option value="${escapeHTML(opt)}">${escapeHTML(opt)}</option>`).join("");
+      const tr = document.createElement("tr");
       tr.innerHTML = `
         <td><input type="text" placeholder="名前"></td>
         <td>
@@ -1228,7 +1229,6 @@
 
     document.querySelector("#dataTable tbody").addEventListener("click", function (e) {
       const activeGenre = document.querySelector("#headder li.active").dataset.genre;
-      // 編集・削除ボタン
       if (e.target.classList.contains("editBtn")) {
         const tr = e.target.closest("tr");
         const id = Number(e.target.dataset.id);
@@ -1236,7 +1236,8 @@
         const memo = tr.querySelector(".memoCell").textContent;
         const date = tr.querySelector(".dateCell").textContent;
         const value = tr.querySelector(".valueCell").textContent;
-        const options = dynamicSubGenres.map(opt =>
+        // ここをGENRE_OPTIONSから取る！
+        const options = GENRE_OPTIONS[activeGenre].map(opt =>
           `<option value="${escapeHTML(opt)}"${opt === memo ? ' selected' : ''}>${escapeHTML(opt)}</option>`
         ).join("");
         tr.innerHTML = `
@@ -1539,6 +1540,8 @@
         subGenre: data.memo || "",
         date: data.date || ""
       };
+      const dateLabel = DATE_LABELS[genre];
+      const dateValue = detail.date || data.date || "";
       let imgHtml = "";
       if (detail.image) {
         imgHtml = `<img src="${detail.image}" alt="作品画像">`;
@@ -1565,6 +1568,8 @@
               <div class="detail-summary-value">${escapeHTML(detail.subGenre || data.memo || "")}</div>
               <div class="detail-summary-label">評価</div>
               <div class="detail-summary-value">${typeof detail.rating === "number" ? detail.rating : ""}</div>
+              <div class="detail-summary-label">${escapeHTML(dateLabel)}</div>
+              <div class="detail-summary-value">${escapeHTML(dateValue)}</div>
               <div class="detail-summary-label">あらすじ</div>
               <div class="detail-summary-value">${escapeHTML(detail.summary || "")}</div>
             </div>
@@ -1606,6 +1611,10 @@
               <option value="">選択してください</option>
               ${genreOptions}
             </select>
+          </div>
+          <div class="filter-group" style="max-width:300px;margin-bottom:14px;">
+            <label class="detail-summary-label">${escapeHTML(dateLabel)}</label>
+            <input id="detailDate" type="date" value="${escapeHTML(dateValue)}">
           </div>
           <div class="detail-flex">
             <div class="detail-image">
@@ -1702,6 +1711,7 @@
         const subGenre = document.getElementById("subGenreEditSelect").value;
         const ratingInput = document.getElementById("detailRating");
         const ratingVal = ratingInput ? Number(ratingInput.value) : 0;
+        const date = document.getElementById("detailDate").value;
         const inputs = document.querySelectorAll("#editCastTable tbody tr");
         casts = [];
         inputs.forEach(tr => {
@@ -1720,10 +1730,12 @@
             genre,
             casts,
             rating: ratingVal,
-            subGenre
+            subGenre,
+            date
           };
           origin.value = ratingVal;
           origin.memo = subGenre;
+          origin.date = date;
           store.put(origin);
           tx.oncomplete = () => {
             const tx2 = db.transaction(genre, "readonly");
