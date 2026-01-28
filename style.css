@@ -12,7 +12,7 @@ body {
   padding: 10px 0;
 }
 
-#headder {
+#header {
   display: flex;
   justify-content: center;
   list-style: none;
@@ -20,7 +20,7 @@ body {
   padding: 0;
 }
 
-#headder li {
+#header li {
   margin: 0 10px;
   padding: 15px 25px;
   font-size: 18px;
@@ -30,8 +30,8 @@ body {
   border-radius: 8px;
 }
 
-#headder li.active,
-#headder li:hover {
+#header li.active,
+#header li:hover {
   background: rgba(255, 255, 255, 0.2);
   transform: translateY(-2px);
 }

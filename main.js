@@ -443,7 +443,7 @@ function loadData(genre) {
 
 // --- 追加・編集・削除 ---
 document.getElementById("addRow").addEventListener("click", () => {
-  const activeGenre = document.querySelector("#headder li.active").dataset.genre;
+  const activeGenre = document.querySelector("#header li.active").dataset.genre;
   const tbody = document.querySelector("#dataTable tbody");
   // ここをGENRE_OPTIONSから取る！
   const options = GENRE_OPTIONS[activeGenre].map(opt => `<option value="${escapeHTML(opt)}">${escapeHTML(opt)}</option>`).join("");
@@ -483,7 +483,7 @@ document.getElementById("addRow").addEventListener("click", () => {
 
 function tableSaveHandler(e) {
   const tr = e.target.closest("tr");
-  const activeGenre = document.querySelector("#headder li.active").dataset.genre;
+  const activeGenre = document.querySelector("#header li.active").dataset.genre;
   const inputs = tr.querySelectorAll("input,select");
   let score = Number(inputs[3].value);
   if (isNaN(score) || score < 0) score = 0;
@@ -542,7 +542,7 @@ function tableSaveHandler(e) {
 }
 
 document.querySelector("#dataTable tbody").addEventListener("click", function (e) {
-  const activeGenre = document.querySelector("#headder li.active").dataset.genre;
+  const activeGenre = document.querySelector("#header li.active").dataset.genre;
   if (e.target.classList.contains("editBtn")) {
     const tr = e.target.closest("tr");
     const id = Number(e.target.dataset.id);
@@ -634,13 +634,13 @@ document.querySelectorAll("#dataTable th[data-col]").forEach(th => {
       sortConfig.col = th.dataset.col;
       sortConfig.order = "asc";
     }
-    const activeGenre = document.querySelector("#headder li.active").dataset.genre;
+    const activeGenre = document.querySelector("#header li.active").dataset.genre;
     loadData(activeGenre);
   });
 });
-document.querySelectorAll("#headder li").forEach(li => {
+document.querySelectorAll("#header li").forEach(li => {
   li.addEventListener("click", () => {
-    document.querySelectorAll("#headder li").forEach(l => l.classList.remove("active"));
+    document.querySelectorAll("#header li").forEach(l => l.classList.remove("active"));
     li.classList.add("active");
     currentGenre = li.dataset.genre;
     filterState.year = [];
@@ -797,7 +797,7 @@ function bindRowClick() {
     // 作品名クリック（span.name-link）
     tr.querySelector('.nameCell .name-link')?.addEventListener("click", function (e) {
       if (tr.classList.contains("editing")) return;
-      const activeGenre = document.querySelector("#headder li.active").dataset.genre;
+      const activeGenre = document.querySelector("#header li.active").dataset.genre;
       const id = Number(tr.dataset.id);
       const tx = db.transaction(activeGenre, "readonly");
       tx.objectStore(activeGenre).get(id).onsuccess = function (ev) {
@@ -810,7 +810,7 @@ function bindRowClick() {
       if (e.key === "Enter" || e.key === " ") {
         if (tr.classList.contains("editing")) return;
         if (document.activeElement === tr.querySelector('.nameCell .name-link')) {
-          const activeGenre = document.querySelector("#headder li.active").dataset.genre;
+          const activeGenre = document.querySelector("#header li.active").dataset.genre;
           const id = Number(tr.dataset.id);
           const tx = db.transaction(activeGenre, "readonly");
           tx.objectStore(activeGenre).get(id).onsuccess = function (ev) {
@@ -1065,3 +1065,6 @@ function showDetailPanel(data, genre, editMode) {
   });
 }
 hideDetailPanel();
+
+window.restoreDatabase = restoreDatabase;
+window.showBackupMessage = showBackupMessage;
