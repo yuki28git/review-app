@@ -63,13 +63,35 @@ https://yuki28git.github.io/review-app/
 - **データストレージ**  
   - [IndexedDB](https://developer.mozilla.org/ja/docs/Web/API/IndexedDB_API)  
     各ジャンルごとに独立したObjectStoreを自動作成
+  - [Cloud Firestore](https://firebase.google.com/docs/firestore)  
+    Googleログイン中は `users/{uid}/items` に同期保存され、同じアカウントであればPC/iPhone間で同じデータを参照
 
 - **画像管理**  
   - 画像はBase64としてIndexedDB内に保存されます（ファイル選択でアップロード可能）
 
 ## 注意事項
 
-- データはブラウザごとに保存されます。他端末や他ブラウザでは共有されません。
+- **端末間同期について**
+  - 同じGoogleアカウントでログインすると、初回ログイン時にクラウド同期が走ります。
+  - クラウドに既存データがある場合は、そのデータが端末側へ取り込まれます。
+  - クラウドが空で端末側にデータがある場合は、端末側データをクラウドへ保存します。
+
+- **Firestore セキュリティルール（必須）**
+  Firebase Console の Firestore ルールを、少なくとも以下のように設定してください。
+
+```text
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/items/{itemId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+```
+
+- ログインしていない場合、データはそのブラウザ内（IndexedDB）にのみ保存されます。
+- ログインしている場合、データはFirestoreにも同期されるため、同じGoogleアカウントなら他端末でも共有されます。
 - IndexedDBの仕様上、一部古いブラウザでは正常に動作しない場合があります。
 - 画像アップロードのファイルサイズが大きいと、保存や表示が遅くなる場合があります。
 
