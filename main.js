@@ -51,49 +51,65 @@ document.getElementById("restoreFile").addEventListener("change", function (e) {
   };
   reader.readAsText(file);
 });
-function restoreDatabase(dataObj) {
+function restoreDatabase(dataObj, options = {}) {
+  const syncAfterRestore = options.syncAfterRestore !== false;
+  const silent = options.silent === true;
   if (!db) {
-    showBackupMessage("DBがまだ初期化されていません。ページを再読み込みしてください。");
-    return;
-  }
-  const genres = Object.keys(GENRE_OPTIONS);
-  let total = genres.length, finished = 0, error = false;
-  for (const genre of genres) {
-    const tx = db.transaction(genre, "readwrite");
-    const store = tx.objectStore(genre);
-    const clearReq = store.clear();
-    clearReq.onsuccess = function () {
-      const arr = Array.isArray(dataObj[genre]) ? dataObj[genre] : [];
-      let pending = arr.length;
-      if (pending === 0) checkDone();
-      arr.forEach(item => {
-        if ("id" in item) delete item.id;
-        store.add(item).onsuccess = function () {
-          pending--;
-          if (pending === 0) checkDone();
-        };
-      });
-    };
-    clearReq.onerror = function () {
-      if (!error) {
-        error = true;
-        showBackupMessage("復元中にエラーが発生しました: " + genre);
-      }
-    };
-  }
-  function checkDone() {
-    finished++;
-    if (finished === total && !error) {
-      showBackupMessage("復元が完了しました。リストを再表示します。");
-      loadData(currentGenre);
-      updateDynamicSubGenres(currentGenre);
-      updateDynamicCastNames(currentGenre);
-      updateDynamicYears(currentGenre);
-      updateDateLabel(currentGenre);
-      updateCastLabel(currentGenre);
-      updateDateColumnHeader(currentGenre);
+    if (!silent) {
+      showBackupMessage("DBがまだ初期化されていません。ページを再読み込みしてください。");
     }
+    return Promise.resolve(false);
   }
+
+  return new Promise((resolve) => {
+    const genres = Object.keys(GENRE_OPTIONS);
+    let total = genres.length;
+    let finished = 0;
+    let error = false;
+
+    for (const genre of genres) {
+      const tx = db.transaction(genre, "readwrite");
+      const store = tx.objectStore(genre);
+      const clearReq = store.clear();
+      clearReq.onsuccess = function () {
+        const arr = Array.isArray(dataObj[genre]) ? dataObj[genre] : [];
+        let pending = arr.length;
+        if (pending === 0) checkDone();
+        arr.forEach(item => {
+          const copy = { ...item };
+          if ("id" in copy) delete copy.id;
+          copy.syncId = copy.syncId || createSyncId();
+          store.add(copy).onsuccess = function () {
+            pending--;
+            if (pending === 0) checkDone();
+          };
+        });
+      };
+      clearReq.onerror = function () {
+        if (!error) {
+          error = true;
+          if (!silent) {
+            showBackupMessage("復元中にエラーが発生しました: " + genre);
+          }
+          resolve(false);
+        }
+      };
+    }
+
+    function checkDone() {
+      finished++;
+      if (finished === total && !error) {
+        if (!silent) {
+          showBackupMessage("復元が完了しました。リストを再表示します。");
+        }
+        refreshGenreView(currentGenre);
+        if (syncAfterRestore) {
+          enqueueCloudSync();
+        }
+        resolve(true);
+      }
+    }
+  });
 }
 function showBackupMessage(msg) {
   const el = document.getElementById("backupMessage");
@@ -169,6 +185,110 @@ let currentGenre = "映画";
 let dynamicSubGenres = [];
 let dynamicCastNames = [];
 let dynamicYears = [];
+let dbReady = false;
+let initialCloudSyncRunning = false;
+let cloudSyncQueue = Promise.resolve();
+
+function idbRequestToPromise(req) {
+  return new Promise((resolve, reject) => {
+    req.onsuccess = (e) => resolve(e.target.result);
+    req.onerror = () => reject(req.error || new Error("IndexedDB request failed"));
+  });
+}
+
+async function getAllItemsByGenre(genre) {
+  const tx = db.transaction(genre, "readonly");
+  const store = tx.objectStore(genre);
+  const items = await idbRequestToPromise(store.getAll());
+  return Array.isArray(items) ? items : [];
+}
+
+async function exportDatabaseSnapshot() {
+  const data = {};
+  for (const genre of genres) {
+    data[genre] = await getAllItemsByGenre(genre);
+  }
+  return data;
+}
+
+function countSnapshotItems(dataObj) {
+  let count = 0;
+  for (const genre of genres) {
+    const arr = Array.isArray(dataObj && dataObj[genre]) ? dataObj[genre] : [];
+    count += arr.length;
+  }
+  return count;
+}
+
+function createSyncId() {
+  if (self.crypto && self.crypto.randomUUID) {
+    return self.crypto.randomUUID();
+  }
+  return `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function refreshGenreView(genre) {
+  loadData(genre);
+  updateDynamicSubGenres(genre);
+  updateDynamicCastNames(genre);
+  updateDynamicYears(genre);
+  updateDateLabel(genre);
+  updateCastLabel(genre);
+  updateDateColumnHeader(genre);
+  document.getElementById("scoreMinInput").value = filterState.scoreMin;
+  document.getElementById("scoreMaxInput").value = filterState.scoreMax;
+}
+
+function enqueueCloudSync() {
+  const uid = window.firebaseSync && typeof window.firebaseSync.getCurrentUserUid === "function"
+    ? window.firebaseSync.getCurrentUserUid()
+    : null;
+  if (!uid || !dbReady || !window.firebaseSync || typeof window.firebaseSync.replaceUserData !== "function") {
+    return;
+  }
+  cloudSyncQueue = cloudSyncQueue
+    .then(async () => {
+      const snapshot = await exportDatabaseSnapshot();
+      await window.firebaseSync.replaceUserData(uid, snapshot);
+    })
+    .catch((err) => {
+      console.error("Cloud sync error:", err);
+      showBackupMessage("クラウド同期に失敗しました");
+    });
+}
+
+async function syncFromCloudOnSignIn(uid) {
+  if (!uid || !dbReady || initialCloudSyncRunning) return;
+  if (!window.firebaseSync || typeof window.firebaseSync.pullUserData !== "function") return;
+  initialCloudSyncRunning = true;
+  try {
+    const remoteData = await window.firebaseSync.pullUserData(uid);
+    const remoteCount = countSnapshotItems(remoteData);
+    const localData = await exportDatabaseSnapshot();
+    const localCount = countSnapshotItems(localData);
+
+    if (remoteCount > 0) {
+      await restoreDatabase(remoteData, { syncAfterRestore: false, silent: true });
+      showBackupMessage("クラウドのデータを同期しました");
+    } else if (localCount > 0) {
+      await window.firebaseSync.replaceUserData(uid, localData);
+      showBackupMessage("現在のデータをクラウドに保存しました");
+    }
+    refreshGenreView(currentGenre);
+  } catch (err) {
+    console.error("Initial cloud sync failed:", err);
+    showBackupMessage("クラウド同期に失敗しました");
+  } finally {
+    initialCloudSyncRunning = false;
+  }
+}
+
+window.addEventListener("firebase-auth-changed", (ev) => {
+  const uid = ev && ev.detail ? ev.detail.uid : null;
+  if (uid) {
+    syncFromCloudOnSignIn(uid);
+  }
+});
 
 // --- IndexedDB初期化 ---
 const request = indexedDB.open("GenreDatabase", 10);
@@ -182,6 +302,7 @@ request.onupgradeneeded = function (e) {
 };
 request.onsuccess = function (e) {
   db = e.target.result;
+  dbReady = true;
   loadData(currentGenre);
   initFilterUI(currentGenre);
   updateDynamicSubGenres(currentGenre);
@@ -192,6 +313,13 @@ request.onsuccess = function (e) {
   updateDateColumnHeader(currentGenre);
   document.getElementById("scoreMinInput").value = filterState.scoreMin;
   document.getElementById("scoreMaxInput").value = filterState.scoreMax;
+
+  const uid = window.firebaseSync && typeof window.firebaseSync.getCurrentUserUid === "function"
+    ? window.firebaseSync.getCurrentUserUid()
+    : null;
+  if (uid) {
+    syncFromCloudOnSignIn(uid);
+  }
 };
 request.onerror = function (e) {
   console.error("IndexedDB open error:", e);
@@ -211,6 +339,7 @@ function updateCastLabel(genre) {
   document.getElementById("voiceBtn").textContent = label + "を選択";
 }
 function updateDynamicSubGenres(genre) {
+  if (!db) return;
   dynamicSubGenres = [];
   const tx = db.transaction(genre, "readonly");
   const store = tx.objectStore(genre);
@@ -229,6 +358,7 @@ function updateDynamicSubGenres(genre) {
   };
 }
 function updateDynamicCastNames(genre) {
+  if (!db) return;
   dynamicCastNames = [];
   const tx = db.transaction(genre, "readonly");
   const store = tx.objectStore(genre);
@@ -250,6 +380,7 @@ function updateDynamicCastNames(genre) {
   };
 }
 function updateDynamicYears(genre) {
+  if (!db) return;
   dynamicYears = [];
   const tx = db.transaction(genre, "readonly");
   const store = tx.objectStore(genre);
@@ -346,6 +477,7 @@ function filterItems(items) {
 
 // --- データ表示 ---
 function loadData(genre) {
+  if (!db) return;
   currentGenre = genre;
   updateDateColumnHeader(genre);
   const tbody = document.querySelector("#dataTable tbody");
@@ -497,6 +629,7 @@ function tableSaveHandler(e) {
   const tx = db.transaction(activeGenre, "readwrite");
   const store = tx.objectStore(activeGenre);
   if (e.target.dataset.mode === "create") {
+    data.syncId = createSyncId();
     data.detail = {
       review: "",
       image: "",
@@ -513,7 +646,8 @@ function tableSaveHandler(e) {
     const id = Number(e.target.dataset.id);
     data.id = id;
     store.get(id).onsuccess = function (ev) {
-      let detailObj = (ev.target.result && ev.target.result.detail) ? ev.target.result.detail : {
+      const origin = ev.target.result || {};
+      let detailObj = origin.detail ? origin.detail : {
         review: "",
         image: "",
         summary: "",
@@ -527,6 +661,7 @@ function tableSaveHandler(e) {
       detailObj.date = data.date;
       data.detail = detailObj;
       data.genre = activeGenre;
+      data.syncId = origin.syncId || createSyncId();
       store.put(data);
     };
   }
@@ -538,6 +673,7 @@ function tableSaveHandler(e) {
     updateDateLabel(activeGenre);
     updateCastLabel(activeGenre);
     updateDateColumnHeader(activeGenre);
+    enqueueCloudSync();
   };
 }
 
@@ -598,6 +734,7 @@ document.querySelector("#dataTable tbody").addEventListener("click", function (e
       updateDateLabel(activeGenre);
       updateCastLabel(activeGenre);
       updateDateColumnHeader(activeGenre);
+      enqueueCloudSync();
     };
   }
   // 作品名クリック: 詳細パネルへ
@@ -1037,6 +1174,7 @@ function showDetailPanel(data, genre, editMode) {
     const store = tx.objectStore(genre);
     store.get(data.id).onsuccess = function (ev2) {
       const origin = ev2.target.result;
+      origin.syncId = origin.syncId || createSyncId();
       origin.detail = {
         summary,
         review,
@@ -1056,6 +1194,7 @@ function showDetailPanel(data, genre, editMode) {
         tx2.objectStore(genre).get(data.id).onsuccess = function (ev3) {
           showDetailPanel(ev3.target.result, genre, false);
           loadData(genre);
+          enqueueCloudSync();
         };
       };
     };
