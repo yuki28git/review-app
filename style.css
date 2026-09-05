@@ -1,3 +1,37 @@
+.auth-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: #ffffff;
+  border-bottom: 1px solid #d6d9e0;
+}
+
+.auth-bar button {
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  color: #fff;
+  background: #1976d2;
+}
+
+#logout {
+  background: #546e7a;
+}
+
+#authStatus {
+  font-size: 14px;
+  color: #333;
+}
+
+.main.locked {
+  pointer-events: none;
+  user-select: none;
+  opacity: 0.55;
+  filter: blur(1px);
+}
+
 body {
   margin: 0;
   font-family: "Segoe UI", Arial, sans-serif;

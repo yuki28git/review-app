@@ -16,7 +16,9 @@
       <li data-genre="ゲーム">ゲーム</li>
     </ul>
   </nav>
-  <div class="main">
+  <div id="authBar" class="auth-bar"> <button id="login" type="button">Googleでログイン</button> <button id="logout"
+      type="button" hidden>ログアウト</button> <span id="authStatus">ログインしてください</span> </div>
+  <div class="main locked">
     <aside class="sidebar">
       <p class="filter-title">フィルター</p>
       <div class="filter-group">
@@ -89,6 +91,7 @@
   </div>
   <script src="main.js"></script>
   <script src="import_latest.js"></script>
+  <script type="module" src="./firebase.js"></script>
 </body>
 
 </html>
